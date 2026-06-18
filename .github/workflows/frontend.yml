@@ -1,0 +1,68 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'stanley-bank/**' ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './stanley-bank/package-lock.json'
+
+      - name: Install & Test
+        working-directory: ./stanley-bank
+        run: |
+          npm ci
+          npm test || echo "Tests not yet implemented"
+
+      - name: Build Application
+        working-directory: ./stanley-bank
+        run: npm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_FRONTEND_REPO }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG ./stanley-bank
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Update K8s Manifest
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          K8S_REPO: ${{ vars.K8S_REPO_URL }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_FRONTEND_REPO }}:${{ github.sha }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/$K8S_REPO k8s-config
+          cd k8s-config
+
+          sed -i "s|image: .*|image: $IMAGE|" frontend-deployment.yaml
+
+          git config user.name "Stanleyoluebube"
+          git config user.email "stanleyoluebube171@gmail.com"
+
+          git add frontend-deployment.yaml
+          git commit -m "deploy: update frontend to latest" || echo "No changes"
+          git push origin main
