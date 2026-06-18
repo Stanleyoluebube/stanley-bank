@@ -15,7 +15,7 @@ export default function AdminPortal() {
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || undefined;
         if (!token) {
           router.push("/login");
           return;
@@ -39,7 +39,7 @@ export default function AdminPortal() {
   async function handlePaymentAction(id: string, action: 'approve' | 'decline') {
     setActionLoading(id);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || undefined;
       await apiRequest(`/admin/${action}/${id}`, "POST", null, token);
       // Refresh stream
       const streamRes = await apiRequest("/admin/stream", "GET", null, token);

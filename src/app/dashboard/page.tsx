@@ -13,7 +13,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchOverview() {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || undefined;
         if (!token) {
           router.push("/login");
           return;
