@@ -22,7 +22,7 @@ export default function LandingPage() {
           >
             Open Account
           </Link>
-        </div}
+        </div>
       </nav>
 
       {/* Hero Section */}
@@ -52,7 +52,7 @@ export default function LandingPage() {
               >
                 Learn More
               </Link>
-            </div}
+            </div>
           </motion.div>
         </div>
 
