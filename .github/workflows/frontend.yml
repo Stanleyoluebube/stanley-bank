@@ -21,7 +21,7 @@ jobs:
           cache-dependency-path: './package-lock.json'
 
       - name: Install & Test
-        working-directory: ./package-lock.json
+        working-directory: .
         run: |
           npm ci
           npm test || echo "Tests not yet implemented"
