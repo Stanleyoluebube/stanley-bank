@@ -50,7 +50,7 @@ export default function Dashboard() {
             + Transfer Money
           </button>
           <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden border border-slate-300 dark:border-slate-600" />
-        </div}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
