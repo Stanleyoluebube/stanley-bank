@@ -21,13 +21,13 @@ jobs:
           cache-dependency-path: './package-lock.json'
 
       - name: Install & Test
-        working-directory: ./stanley-bank
+        working-directory: ./package-lock.json
         run: |
           npm ci
           npm test || echo "Tests not yet implemented"
 
       - name: Build Application
-        working-directory: ./stanley-bank
+        working-directory: ./package-lock.json
         run: npm run build
 
       - name: Configure AWS Credentials
