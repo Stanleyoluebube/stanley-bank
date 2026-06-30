@@ -74,12 +74,7 @@ jobs:
 
           # If the manifest still has the sentinel placeholder, replace it
           # (first push). Otherwise update the existing image tag.
-          if grep -q "178220402760.dkr.ecr.us-east-2.amazonaws.com" "bank-project/${MANIFEST}"; then
-            sed -i "s|178220402760.dkr.ecr.us-east-2.amazonaws.com|${IMAGE}|" "bank-project/${MANIFEST}"
-          else
-            sed -i "s|image: .*|image: ${IMAGE}|" "bank-project/${MANIFEST}"
-          fi
-
+          sed -i "s|image: .*|image: ${IMAGE}|" "bank-project/${MANIFEST}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "bank-project/${MANIFEST}"
