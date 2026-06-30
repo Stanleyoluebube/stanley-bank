@@ -2,15 +2,28 @@ name: Frontend CI/CD
 
 on:
   push:
-    branches: [ main ]
-   
+    branches: [main]
+
+# Prevent overlapping deploys from a fast-pushed sequence of commits.
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  IMAGE_REPO: stanleybank/app
+  K8S_MANIFEST: frontend-deployment.yaml
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -18,51 +31,63 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: ./package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install & Test
+      - name: Install & test
         run: |
           npm ci
           npm test || echo "Tests not yet implemented"
 
-      - name: Build Application
+      - name: Build
         run: npm run build
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, Tag, and Push Image
+      - name: Build & push image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_FRONTEND_REPO }}
+          REPOSITORY: ${{ env.IMAGE_REPO }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
-      - name: Update K8s Manifest
+      - name: Update K8s manifest in k8s repo
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          K8S_REPO: ${{ vars.K8S_REPO_URL }}
-          IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_FRONTEND_REPO }}:${{ github.sha }}
+          K8S_REPO_URL: ${{ vars.K8S_REPO_URL }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_REPO }}:${{ github.sha }}
+          MANIFEST: ${{ env.K8S_MANIFEST }}
         run: |
-          git clone https://$GH_TOKEN@${K8S_REPO#https://} k8s-config
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@${K8S_REPO_URL#https://}" k8s-config
           cd k8s-config
 
-          sed -i "s|image: .*|image: $IMAGE|" frontend-deployment.yaml
+          # If the manifest still has the sentinel placeholder, replace it
+          # (first push). Otherwise update the existing image tag.
+          if grep -q "178220402760.dkr.ecr.us-east-2.amazonaws.com" "bank-project/${MANIFEST}"; then
+            sed -i "s|178220402760.dkr.ecr.us-east-2.amazonaws.com|${IMAGE}|" "bank-project/${MANIFEST}"
+          else
+            sed -i "s|image: .*|image: ${IMAGE}|" "bank-project/${MANIFEST}"
+          fi
 
-          git config user.name "Stanleyoluebube"
-          git config user.email "stanleyoluebube171@gmail.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "bank-project/${MANIFEST}"
 
-          git add frontend-deployment.yaml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
 
-          git commit -m "deploy: update frontend image to ${{ github.sha }}" || echo "No changes to commit"
-          git push origin main
+          git commit -m "deploy(frontend): ${IMAGE}"
+          git push origin HEAD:main
